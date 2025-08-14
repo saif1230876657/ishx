@@ -1,62 +1,90 @@
 <!DOCTYPE html>
 <html lang="ar">
 <head>
-  <meta charset="UTF-8">
-  <title>رفع فيديو والحصول على رابط مباشر</title>
+<meta charset="UTF-8">
+<title>تطبيق فيديوهات</title>
+<style>
+body { font-family: sans-serif; padding: 20px; background: #222; color: #fff; }
+.video-container { margin-bottom: 20px; }
+video { width: 500px; display: block; margin-bottom: 5px; border: 2px solid #fff; }
+input[type=text] { width: 100%; }
+</style>
 </head>
 <body>
-  <input type="file" id="uploadVideo" accept="video/*">
-  <button id="uploadBtn">رفع الفيديو</button>
-  <p>رابط مباشر: <input type="text" id="videoLink" style="width: 400px;"></p>
+<h2>رفع الفيديوهات</h2>
+<input type="file" id="uploadVideo" accept="video/*">
+<button id="uploadBtn">رفع الفيديو</button>
 
-  <video id="videoPlayer" controls width="500"></video>
+<h2>الفيديوهات الموجودة</h2>
+<div id="videosList"></div>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-    import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
-    import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-analytics.js";
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+import { getDatabase, ref, set, get, push, child, onValue } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
+import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-analytics.js";
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyCcqpstSz3Wg6zQb_-bC0JyjcJjX5c3TQ8",
-      authDomain: "saifsa-d4bee.firebaseapp.com",
-      databaseURL: "https://saifsa-d4bee-default-rtdb.firebaseio.com",
-      projectId: "saifsa-d4bee",
-      storageBucket: "saifsa-d4bee.firebasestorage.app",
-      messagingSenderId: "56650923251",
-      appId: "1:56650923251:web:83ed4afadf44f8eabf0b86",
-      measurementId: "G-0ZTS7PEXC2"
-    };
+// إعداد Firebase
+const firebaseConfig = {
+  apiKey: "AIzaSyCcqpstSz3Wg6zQb_-bC0JyjcJjX5c3TQ8",
+  authDomain: "saifsa-d4bee.firebaseapp.com",
+  databaseURL: "https://saifsa-d4bee-default-rtdb.firebaseio.com",
+  projectId: "saifsa-d4bee",
+  storageBucket: "saifsa-d4bee.firebasestorage.app",
+  messagingSenderId: "56650923251",
+  appId: "1:56650923251:web:83ed4afadf44f8eabf0b86",
+  measurementId: "G-0ZTS7PEXC2"
+};
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+const db = getDatabase(app);
 
-    const app = initializeApp(firebaseConfig);
-    const analytics = getAnalytics(app);
-    const db = getDatabase(app);
+const uploadBtn = document.getElementById('uploadBtn');
+const uploadVideo = document.getElementById('uploadVideo');
+const videosList = document.getElementById('videosList');
 
-    const uploadBtn = document.getElementById('uploadBtn');
-    const uploadVideo = document.getElementById('uploadVideo');
-    const videoPlayer = document.getElementById('videoPlayer');
-    const videoLinkInput = document.getElementById('videoLink');
+// رفع فيديو جديد
+uploadBtn.addEventListener('click', () => {
+  const file = uploadVideo.files[0];
+  if (!file) return alert("اختار فيديو أولاً");
 
-    uploadBtn.addEventListener('click', () => {
-      const file = uploadVideo.files[0];
-      if (!file) return alert("اختار فيديو أولاً");
-
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        const base64Data = e.target.result.split(',')[1]; // فقط البيانات
-        set(ref(db, 'videos/myVideo'), base64Data).then(() => {
-          alert("تم رفع الفيديو!");
-          // إنشاء رابط مباشر مؤقت للفيديو
-          const byteCharacters = atob(base64Data);
-          const byteNumbers = new Array(byteCharacters.length).fill().map((_, i) => byteCharacters.charCodeAt(i));
-          const byteArray = new Uint8Array(byteNumbers);
-          const blob = new Blob([byteArray], { type: 'video/mp4' });
-          const url = URL.createObjectURL(blob);
-          videoPlayer.src = url;
-          videoLinkInput.value = url; // رابط مباشر للنسخ
-        });
-      };
-      reader.readAsDataURL(file);
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const base64Data = e.target.result.split(',')[1];
+    const newVideoRef = push(ref(db, 'videos'));
+    set(newVideoRef, base64Data).then(() => {
+      alert("تم رفع الفيديو!");
     });
-  </script>
+  };
+  reader.readAsDataURL(file);
+});
+
+// عرض كل الفيديوهات
+onValue(ref(db, 'videos'), (snapshot) => {
+  videosList.innerHTML = ''; // تنظيف القائمة قبل إعادة العرض
+  snapshot.forEach(childSnapshot => {
+    const base64Data = childSnapshot.val();
+    const byteCharacters = atob(base64Data);
+    const byteNumbers = new Array(byteCharacters.length).fill().map((_, i) => byteCharacters.charCodeAt(i));
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: 'video/mp4' });
+    const url = URL.createObjectURL(blob);
+
+    const container = document.createElement('div');
+    container.classList.add('video-container');
+
+    const videoElem = document.createElement('video');
+    videoElem.controls = true;
+    videoElem.src = url;
+
+    const linkElem = document.createElement('input');
+    linkElem.type = 'text';
+    linkElem.value = url;
+
+    container.appendChild(videoElem);
+    container.appendChild(linkElem);
+    videosList.appendChild(container);
+  });
+});
+</script>
 </body>
 </html>
